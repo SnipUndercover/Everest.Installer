@@ -59,12 +59,7 @@ namespace MonoMod.Installer {
                 File.Delete(log);
             using (Stream fileStream = File.OpenWrite(log))
             using (StreamWriter fileWriter = new StreamWriter(fileStream, Console.OutputEncoding))
-            using (LogWriter logWriter = new LogWriter {
-                STDOUT = Console.Out,
-                File = fileWriter
-            }) {
-                Console.SetOut(logWriter);
-
+            using (LogWriter logWriter = new LogWriter(Console.Out, Console.Error, fileWriter)) {
                 GameModInfo info = new Everest.EverestInfo();
                 string protocol = info.ModURIProtocol;
                 if (!string.IsNullOrEmpty(protocol))
@@ -100,9 +95,6 @@ namespace MonoMod.Installer {
                         MessageBox.Show($"{info.ModInstallerName} has encountered a critical error.\nPlease submit your installer-log.txt\nIt's located next to the installer .exe", info.ModInstallerName, MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
-
-                Console.SetOut(logWriter.STDOUT);
-                logWriter.STDOUT = null;
             }
         }
     }

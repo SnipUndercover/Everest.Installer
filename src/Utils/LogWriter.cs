@@ -6,54 +6,101 @@ using System.Reflection;
 using System.Text;
 
 namespace MonoMod.Installer {
-    public class LogWriter : TextWriter {
+    public class LogWriter : IDisposable {
 
-        public TextWriter STDOUT;
+        public OutputStreamCapture STDOUT;
+        public OutputStreamCapture STDERR;
         public TextWriter File;
+
+        private bool captureStarted = false;
+
+        public LogWriter(TextWriter @out, TextWriter err, TextWriter file, bool beginCapture = true)
+        {
+            STDOUT = new OutputStreamCapture(@out, this);
+            STDERR = new OutputStreamCapture(err, this);
+            File = file;
+            if (beginCapture)
+                BeginCapture();
+        }
 
         // Modification that allows us to display the last line in the UI.
         internal static Action<string> OnWriteLine;
 
-        public override Encoding Encoding {
-            get {
-                return STDOUT?.Encoding ?? File?.Encoding;
-            }
+        public Encoding Encoding => STDOUT.Encoding ?? STDERR.Encoding ?? File.Encoding;
+
+        public void BeginCapture()
+        {
+            if (captureStarted)
+                return;
+            Console.SetOut(STDOUT);
+            Console.SetError(STDERR);
+            captureStarted = true;
         }
 
-        public override void Write(string value) {
-            STDOUT?.Write(value);
-            File?.Write(value);
-            File?.Flush();
+        public void EndCapture()
+        {
+            if (!captureStarted)
+                return;
+            Console.SetOut(STDOUT.Stream);
+            Console.SetError(STDERR.Stream);
+            captureStarted = false;
         }
 
-        public override void WriteLine(string value) {
-            STDOUT?.WriteLine(value);
-            File?.WriteLine(value);
-            File?.Flush();
-            OnWriteLine?.Invoke(value);
-        }
-
-        public override void Write(char value) {
-            STDOUT?.Write(value);
-            File?.Write(value);
-            File?.Flush();
-        }
-
-        public override void Write(char[] buffer, int index, int count) {
-            STDOUT?.Write(buffer, index, count);
-            File?.Write(buffer, index, count);
-            File?.Flush();
-        }
-
-        public override void Flush() {
-            STDOUT?.Flush();
-            File?.Flush();
-        }
-
-        public override void Close() {
+        public void Dispose()
+        {
+            EndCapture();
+            // TextWriter.Close has no effect if the stream is a console stream
             STDOUT?.Close();
+            STDERR?.Close();
             File?.Close();
         }
+    }
 
+    public class OutputStreamCapture : TextWriter
+    {
+        public TextWriter Stream;
+        public LogWriter Writer;
+
+        public OutputStreamCapture(TextWriter stream, LogWriter writer)
+        {
+            Stream = stream;
+            Writer = writer;
+        }
+
+        public override Encoding Encoding => Stream.Encoding;
+
+        public override void Write(string value)
+        {
+            Stream.Write(value);
+            Writer.File.Write(value);
+        }
+
+        public override void WriteLine(string value)
+        {
+            Stream.WriteLine(value);
+            Writer.File.WriteLine(value);
+            LogWriter.OnWriteLine?.Invoke(value);
+        }
+
+        public override void Write(char value)
+        {
+            Stream.Write(value);
+            Writer.File.Write(value);
+        }
+
+        public override void Write(char[] buffer, int index, int count)
+        {
+            Stream.Write(buffer, index, count);
+            Writer.File.Write(buffer, index, count);
+            Writer.File.Flush();
+        }
+
+        public override void Flush()
+        {
+            Stream.Flush();
+            Writer.File.Flush();
+        }
+
+        public override void Close() => Stream.Close();
     }
 }

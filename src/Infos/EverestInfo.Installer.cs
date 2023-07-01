@@ -81,20 +81,14 @@ namespace MonoMod.Installer.Everest {
 
                 TextReader origReader = Console.In;
                 using (TextWriter fileWriter = new MiniInstallerBridgeWriter(bridge))
-                using (LogWriter logWriter = new LogWriter {
-                    STDOUT = Console.Out,
-                    File = fileWriter
-                })
+                using (LogWriter logWriter = new LogWriter(Console.Out, Console.Error, fileWriter))
                 using (TextReader fakeReader = new MiniInstallerFakeInReader()) {
-                    Console.SetOut(logWriter);
                     Console.SetIn(fakeReader);
 
                     object exitObject = installerAssembly.EntryPoint.Invoke(null, new object[] { new string[] { } });
                     if (exitObject != null && exitObject is int && ((int) exitObject) != 0)
                         throw new Exception($"Return code != 0, but {exitObject}");
 
-                    Console.SetOut(logWriter.STDOUT);
-                    logWriter.STDOUT = null;
                     Console.SetIn(origReader);
                 }
 
